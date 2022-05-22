@@ -22,6 +22,7 @@ async function run() {
         await client.connect();
         const productsCollection = client.db('garments-ground').collection('products');
         const reviewsCollection = client.db('garments-ground').collection('reviews');
+        const orderCollection = client.db('garments-ground').collection('orders');
 
 
         app.get('/products', async (req, res) => {
@@ -46,10 +47,25 @@ async function run() {
         });
 
 
+        app.put('/products/:id', async (req, res) => {
+            const id = req.params.id;
+            const updatedQuantity = req.body;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedProductQuantity = {
+                $set: {
+                    minimum_order_quantity: updatedQuantity.minimum_order_quantity
+                }
+            };
+            const result = await productsCollection.updateOne(filter, updatedProductQuantity, options)
+            res.send(result);
+        });
 
-
-
-
+        app.post('/order', async (req, res) => {
+            const order = req.body;
+            const result = await orderCollection.insertOne(order);
+            res.send(result);
+        })
 
     }
     finally {
