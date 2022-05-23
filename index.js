@@ -46,6 +46,12 @@ async function run() {
             res.send(reviews);
         });
 
+        app.post('/reviews', async (req, res) => {
+            const review = req.body;
+            const result = await reviewsCollection.insertOne(review);
+            res.send(result);
+        })
+
 
         app.put('/products/:id', async (req, res) => {
             const id = req.params.id;
@@ -55,17 +61,35 @@ async function run() {
             const updatedProductQuantity = {
                 $set: {
                     minimum_order_quantity: updatedQuantity.minimum_order_quantity
+
                 }
             };
             const result = await productsCollection.updateOne(filter, updatedProductQuantity, options)
             res.send(result);
         });
 
+        app.get('/order', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const cursor = orderCollection.find(query);
+            const orders = await cursor.toArray();
+            res.send(orders);
+        })
+
+
         app.post('/order', async (req, res) => {
             const order = req.body;
             const result = await orderCollection.insertOne(order);
             res.send(result);
         })
+
+        app.delete('/order/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const result = await orderCollection.deleteOne(query);
+            res.send(result);
+        });
+
 
     }
     finally {
