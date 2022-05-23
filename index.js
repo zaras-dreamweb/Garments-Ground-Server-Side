@@ -4,6 +4,7 @@ const app = express();
 const port = process.env.PORT || 5000;
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 
 
@@ -23,6 +24,7 @@ async function run() {
         const productsCollection = client.db('garments-ground').collection('products');
         const reviewsCollection = client.db('garments-ground').collection('reviews');
         const orderCollection = client.db('garments-ground').collection('orders');
+        const paymentCollection = client.db('garments-ground').collection('payments');
 
 
         app.get('/products', async (req, res) => {
@@ -60,11 +62,25 @@ async function run() {
             const options = { upsert: true };
             const updatedProductQuantity = {
                 $set: {
-                    minimum_order_quantity: updatedQuantity.minimum_order_quantity
+                    your_purchase: updatedQuantity.your_purchase
 
                 }
             };
             const result = await productsCollection.updateOne(filter, updatedProductQuantity, options)
+            res.send(result);
+        });
+        app.put('/products/:id', async (req, res) => {
+            const id = req.params.id;
+            const updatedPrice = req.body;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedProductPrice = {
+                $set: {
+                    your_price: updatedPrice.your_price
+
+                }
+            };
+            const result = await productsCollection.updateOne(filter, updatedProductPrice, options)
             res.send(result);
         });
 
@@ -76,6 +92,13 @@ async function run() {
             res.send(orders);
         })
 
+        app.get('/order/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const order = await orderCollection.findOne(query);
+            res.send(order);
+        })
+
 
         app.post('/order', async (req, res) => {
             const order = req.body;
@@ -83,11 +106,39 @@ async function run() {
             res.send(result);
         })
 
+        app.patch('/order/:id', async (req, res) => {
+            const id = req.params.id;
+            const payment = req.body;
+            const filter = { _id: ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    paid: true,
+                    transactionId: payment.transactionId,
+                }
+            }
+            const result = await paymentCollection.insertOne(payment);
+            const updatedOrder = await orderCollection.updateOne(filter, updatedDoc);
+            res.send(updatedDoc)
+
+        })
+
         app.delete('/order/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
             const result = await orderCollection.deleteOne(query);
             res.send(result);
+        });
+
+        app.post('/create-payment-intent', async (req, res) => {
+            const order = req.body;
+            const price = order.price;
+            const amount = price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            });
+            res.send({ clientSecret: paymentIntent.client_secret })
         });
 
 
