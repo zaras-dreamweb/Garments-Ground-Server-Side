@@ -50,6 +50,11 @@ async function run() {
             const products = await cursor.toArray();
             res.send(products);
         });
+        app.post('/products', async (req, res) => {
+            const product = req.body;
+            const result = await productsCollection.insertOne(product);
+            res.send(result);
+        })
 
         app.get('/products/:id', async (req, res) => {
             const id = req.params.id;
@@ -63,11 +68,18 @@ async function run() {
             res.send(users);
         })
 
+        app.get('/admin/:email', async (req, res) => {
+            const email = req.params.email;
+            const user = await userCollection.findOne({ email: email });
+            const isAdmin = user.role === 'admin';
+            res.send({ admin: isAdmin });
+        })
+
         app.put('/user/admin/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
             const requester = req.decoded.email;
             const requesterAccount = await userCollection.findOne({ email: requester });
-            if (requesterAccount === 'admin') {
+            if (requesterAccount.role === 'admin') {
                 const filter = { email: email };
                 const updatedDoc = {
                     $set: { role: 'admin' },
@@ -122,20 +134,20 @@ async function run() {
             const result = await productsCollection.updateOne(filter, updatedProductQuantity, options)
             res.send(result);
         });
-        app.put('/products/:id', async (req, res) => {
-            const id = req.params.id;
-            const updatedPrice = req.body;
-            const filter = { _id: ObjectId(id) };
-            const options = { upsert: true };
-            const updatedProductPrice = {
-                $set: {
-                    your_price: updatedPrice.your_price
+        // app.put('/products/:id', async (req, res) => {
+        //     const id = req.params.id;
+        //     const updatedPrice = req.body;
+        //     const filter = { _id: ObjectId(id) };
+        //     const options = { upsert: true };
+        //     const updatedProductPrice = {
+        //         $set: {
+        //             your_price: updatedPrice.your_price
 
-                }
-            };
-            const result = await productsCollection.updateOne(filter, updatedProductPrice, options)
-            res.send(result);
-        });
+        //         }
+        //     };
+        //     const result = await productsCollection.updateOne(filter, updatedProductPrice, options)
+        //     res.send(result);
+        // });
 
         app.get('/order', verifyJWT, async (req, res) => {
             const email = req.query.email;
