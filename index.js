@@ -41,7 +41,6 @@ async function run() {
         const reviewsCollection = client.db('garments-ground').collection('reviews');
         const orderCollection = client.db('garments-ground').collection('orders');
         const paymentCollection = client.db('garments-ground').collection('payments');
-        const profileCollection = client.db('garments-ground').collection('profiles');
         const userCollection = client.db('garments-ground').collection('users');
 
 
@@ -59,9 +58,26 @@ async function run() {
             res.send(products);
         });
 
-        app.get('/user', async (req, res) => {
+        app.get('/user', verifyJWT, async (req, res) => {
             const users = await userCollection.find().toArray();
             res.send(users);
+        })
+
+        app.put('/user/admin/:email', verifyJWT, async (req, res) => {
+            const email = req.params.email;
+            const requester = req.decoded.email;
+            const requesterAccount = await userCollection.findOne({ email: requester });
+            if (requesterAccount === 'admin') {
+                const filter = { email: email };
+                const updatedDoc = {
+                    $set: { role: 'admin' },
+                };
+                const result = await userCollection.updateOne(filter, updatedDoc);
+                res.send(result);
+            }
+            else {
+                return res.status(403).send({ message: 'Forbidden Request' })
+            }
         })
 
 
