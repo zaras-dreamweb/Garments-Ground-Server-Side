@@ -44,17 +44,28 @@ async function run() {
         const userCollection = client.db('garments-ground').collection('users');
 
 
+        const verifyAdmin = async (req, res, next) => {
+            const requester = req.decoded.email;
+            const requesterAccount = await userCollection.findOne({ email: requester });
+            if (requesterAccount.role === 'admin') {
+                next();
+            }
+            else {
+                return res.status(403).send({ message: 'Forbidden Request' })
+            }
+        }
         app.get('/products', async (req, res) => {
             const query = {};
             const cursor = productsCollection.find(query);
             const products = await cursor.toArray();
             res.send(products);
         });
-        app.post('/products', async (req, res) => {
+
+        app.post('/products', verifyJWT, verifyAdmin, async (req, res) => {
             const product = req.body;
             const result = await productsCollection.insertOne(product);
             res.send(result);
-        })
+        });
 
         app.get('/products/:id', async (req, res) => {
             const id = req.params.id;
@@ -63,34 +74,52 @@ async function run() {
             res.send(products);
         });
 
+        app.delete('/products/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const result = await productsCollection.deleteOne(query);
+            res.send(result);
+        });
+
+
+        app.put('/products/:id', async (req, res) => {
+            const id = req.params.id;
+            const updatedQuantity = req.body;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedProductQuantity = {
+                $set: {
+                    ordered_quantity: updatedQuantity.ordered_quantity
+
+                }
+            };
+            const result = await productsCollection.updateOne(filter, updatedProductQuantity, options)
+            res.send(result);
+        });
+
+
         app.get('/user', verifyJWT, async (req, res) => {
             const users = await userCollection.find().toArray();
             res.send(users);
-        })
+        });
+
 
         app.get('/admin/:email', async (req, res) => {
             const email = req.params.email;
             const user = await userCollection.findOne({ email: email });
             const isAdmin = user.role === 'admin';
             res.send({ admin: isAdmin });
-        })
+        });
 
-        app.put('/user/admin/:email', verifyJWT, async (req, res) => {
+        app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
             const email = req.params.email;
-            const requester = req.decoded.email;
-            const requesterAccount = await userCollection.findOne({ email: requester });
-            if (requesterAccount.role === 'admin') {
-                const filter = { email: email };
-                const updatedDoc = {
-                    $set: { role: 'admin' },
-                };
-                const result = await userCollection.updateOne(filter, updatedDoc);
-                res.send(result);
-            }
-            else {
-                return res.status(403).send({ message: 'Forbidden Request' })
-            }
-        })
+            const filter = { email: email };
+            const updatedDoc = {
+                $set: { role: 'admin' },
+            };
+            const result = await userCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        });
 
 
         app.put('/user/:email', async (req, res) => {
@@ -104,7 +133,8 @@ async function run() {
             const result = await userCollection.updateOne(filter, updatedDoc, options);
             const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
             res.send({ result, token });
-        })
+        });
+
 
         app.get('/reviews', async (req, res) => {
             const query = {};
@@ -117,37 +147,8 @@ async function run() {
             const review = req.body;
             const result = await reviewsCollection.insertOne(review);
             res.send(result);
-        })
-
-
-        app.put('/products/:id', async (req, res) => {
-            const id = req.params.id;
-            const updatedQuantity = req.body;
-            const filter = { _id: ObjectId(id) };
-            const options = { upsert: true };
-            const updatedProductQuantity = {
-                $set: {
-                    your_purchase: updatedQuantity.your_purchase
-
-                }
-            };
-            const result = await productsCollection.updateOne(filter, updatedProductQuantity, options)
-            res.send(result);
         });
-        // app.put('/products/:id', async (req, res) => {
-        //     const id = req.params.id;
-        //     const updatedPrice = req.body;
-        //     const filter = { _id: ObjectId(id) };
-        //     const options = { upsert: true };
-        //     const updatedProductPrice = {
-        //         $set: {
-        //             your_price: updatedPrice.your_price
 
-        //         }
-        //     };
-        //     const result = await productsCollection.updateOne(filter, updatedProductPrice, options)
-        //     res.send(result);
-        // });
 
         app.get('/order', verifyJWT, async (req, res) => {
             const email = req.query.email;
@@ -161,23 +162,23 @@ async function run() {
             else {
                 return res.status(403).send({ message: 'Forbidden Access' })
             }
-        })
+        });
 
         app.get('/order/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
             const order = await orderCollection.findOne(query);
             res.send(order);
-        })
+        });
 
 
-        app.post('/order', async (req, res) => {
+        app.post('/order', verifyJWT, async (req, res) => {
             const order = req.body;
             const result = await orderCollection.insertOne(order);
             res.send(result);
-        })
+        });
 
-        app.patch('/order/:id', async (req, res) => {
+        app.patch('/order/:id', verifyJWT, async (req, res) => {
             const id = req.params.id;
             const payment = req.body;
             const filter = { _id: ObjectId(id) };
@@ -191,9 +192,9 @@ async function run() {
             const updatedOrder = await orderCollection.updateOne(filter, updatedDoc);
             res.send(updatedDoc)
 
-        })
+        });
 
-        app.delete('/order/:id', async (req, res) => {
+        app.delete('/order/:id', verifyJWT, async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
             const result = await orderCollection.deleteOne(query);
@@ -201,7 +202,7 @@ async function run() {
         });
 
 
-        app.post('/create-payment-intent', async (req, res) => {
+        app.post('/create-payment-intent', verifyJWT, async (req, res) => {
             const order = req.body;
             const price = order.price;
             const amount = price * 100;
@@ -220,14 +221,6 @@ async function run() {
     }
 }
 run().catch(console.dir);
-
-
-
-
-
-
-
-
 
 
 
